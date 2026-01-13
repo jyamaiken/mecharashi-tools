@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Shield, User, Sword, RefreshCw, ChevronRight, LayoutGrid, List, AlertCircle, Database, Box, Layers, Filter, Languages, Cpu, X } from 'lucide-react';
+import { Search, Shield, User, Sword, RefreshCw, ChevronRight, LayoutGrid, List, AlertCircle, Database, Box, Layers, Filter, Languages, Cpu } from 'lucide-react';
 
 const App: React.FC = () => {
   const [db, setDb] = useState<any>(null);
@@ -9,7 +9,6 @@ const App: React.FC = () => {
   const [selectedSubGroup, setSelectedSubGroup] = useState<string>('すべて');
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [selectedItem, setSelectedItem] = useState<any>(null);
 
   useEffect(() => {
     const loadDatabase = async () => {
@@ -44,16 +43,6 @@ const App: React.FC = () => {
       setSelectedSubGroup('');
     }
   }, [activeTab, db]);
-
-  // モーダル表示時のスクロール制御
-  useEffect(() => {
-    if (selectedItem) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => { document.body.style.overflow = 'unset'; };
-  }, [selectedItem]);
 
   const getTabIcon = (name: string) => {
     if (name.includes('操縦士') || name.includes('キャラST')) return <User size={18} />;
@@ -148,7 +137,7 @@ const App: React.FC = () => {
           {/* 表示 */}
           <div className={viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" : "space-y-2"}>
             {groupFilteredItems.map((item: any, i: number) => (
-              <ItemCard key={i} item={item} mode={viewMode} tabName={activeTab} onSelect={setSelectedItem} />
+              <ItemCard key={i} item={item} mode={viewMode} tabName={activeTab} />
             ))}
           </div>
         </div>
@@ -158,11 +147,20 @@ const App: React.FC = () => {
     return (
       <div className={viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" : "space-y-2"}>
         {searchedItems.map((item: any, i: number) => (
-          <ItemCard key={i} item={item} mode={viewMode} tabName={activeTab} onSelect={setSelectedItem} />
+          <ItemCard key={i} item={item} mode={viewMode} tabName={activeTab} />
         ))}
       </div>
     );
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-[#0a0c10] text-blue-400">
+        <RefreshCw className="w-12 h-12 animate-spin mb-4" />
+        <p className="font-mono tracking-widest uppercase animate-pulse">Syncing Database...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0d1117] text-slate-300 font-sans">
@@ -230,71 +228,10 @@ const App: React.FC = () => {
         )}
       </main>
 
-      {/* 詳細モーダル */}
-      {selectedItem && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-all" onClick={() => setSelectedItem(null)}>
-          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-hidden bg-[#161b22] border border-slate-700 rounded-3xl shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between p-6 border-b border-slate-800">
-              <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-3">
-                {getTabIcon(activeTab)}
-                {selectedItem['名前'] || selectedItem['日本名'] || selectedItem['Name'] || selectedItem['機体名'] || selectedItem['武器名'] || '詳細データ'}
-              </h2>
-              <button onClick={() => setSelectedItem(null)} className="p-2 hover:bg-slate-800 rounded-full text-slate-400 hover:text-white transition-colors">
-                <X size={24} />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="space-y-6">
-                {/* ステータスセクション */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {Object.entries(selectedItem).filter(([k]) => !k.startsWith('_')).map(([key, val]) => (
-                    val && (
-                      <div key={key} className="p-3 bg-black/20 border border-slate-800/50 rounded-xl flex flex-col gap-1">
-                        <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{key}</span>
-                        <span className="text-sm text-slate-200 font-medium break-words">{String(val)}</span>
-                      </div>
-                    )
-                  ))}
-                </div>
-
-                {/* 拡張データ（サブ行） */}
-                {selectedItem._subRows && selectedItem._subRows.length > 0 && (
-                  <div className="space-y-4">
-                    <p className="text-xs text-blue-400 font-black tracking-[0.2em] uppercase flex items-center gap-2">
-                      <Database size={14} /> EXTENDED DATA
-                    </p>
-                    {selectedItem._subRows.map((sub: any, idx: number) => (
-                      <div key={idx} className="p-4 bg-blue-900/5 border border-blue-900/20 rounded-2xl space-y-3">
-                        {Object.entries(sub).map(([sk, sv]) => (
-                          sv && (
-                            <div key={sk} className="flex flex-col gap-1">
-                              <span className="text-[10px] text-blue-500/70 font-bold uppercase">{sk}</span>
-                              <span className="text-sm text-slate-300 leading-relaxed">{String(sv)}</span>
-                            </div>
-                          )
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="p-4 bg-black/20 text-center border-t border-slate-800">
-              <button 
-                onClick={() => setSelectedItem(null)}
-                className="px-8 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-full text-sm font-bold transition-all border border-slate-700"
-              >
-                閉じる
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
       <footer className="py-12 border-t border-slate-900 bg-[#0a0c10] px-4">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-slate-700 text-[10px] tracking-[0.4em] uppercase font-bold text-center md:text-left">
-            Mecharashi dynamic archive system v2.6
+            Mecharashi dynamic archive system v2.7
           </p>
           <div className="text-[9px] text-slate-600 text-center md:text-right leading-relaxed opacity-60 hover:opacity-100 transition-opacity">
             <p>作成者：vinotamon</p>
@@ -321,7 +258,7 @@ const NavButton = ({ active, icon, label, onClick, count }: any) => (
   </button>
 );
 
-const ItemCard = ({ item, mode, tabName, onSelect }: any) => {
+const ItemCard = ({ item, mode, tabName }: any) => {
   const itemEntries = Object.entries(item).filter(([k]) => !k.startsWith('_'));
   
   let name = '';
@@ -338,45 +275,63 @@ const ItemCard = ({ item, mode, tabName, onSelect }: any) => {
 
   if (mode === 'list') {
     return (
-      <div 
-        className="flex items-center justify-between p-4 bg-[#161b22] border border-slate-800 rounded-lg hover:border-blue-500/50 hover:bg-[#1c232d] transition-all group cursor-pointer shadow-sm active:scale-[0.98]"
-        onClick={() => onSelect(item)}
-      >
-        <div className="flex items-center gap-4">
-          <div className={`w-1 h-6 rounded-full ${rarity.includes('S') ? 'bg-orange-500' : rarity.includes('A') ? 'bg-purple-500' : 'bg-blue-500'}`} />
-          <span className="text-white font-bold group-hover:text-blue-400 transition-colors flex items-center gap-2">
-            {name}
-            {tabName === 'コア' && item['要度'] && (
-              <span className="text-[10px] text-slate-500 font-normal italic">
-                (要度: {item['要度']})
+      <div className="bg-[#161b22] border border-slate-800 rounded-lg p-4 transition-all shadow-sm">
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className={`w-1 h-6 rounded-full ${rarity.includes('S') ? 'bg-orange-500' : rarity.includes('A') ? 'bg-purple-500' : 'bg-blue-500'}`} />
+              <span className="text-white font-bold flex items-center gap-2">
+                {name}
+                {tabName === 'コア' && item['要度'] && (
+                  <span className="text-[10px] text-slate-500 font-normal italic">(要度: {item['要度']})</span>
+                )}
               </span>
-            )}
-          </span>
-          {tabName === 'ST' && item['免'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">免: {item['免']}</span>}
-          {(tabName === '武器' || tabName === 'コア') && item['種別'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">{item['種別']}</span>}
-          {tabName === 'コア' && item['条件or効果'] && (
-            <span className="text-[10px] text-blue-400 underline decoration-blue-900/50 truncate max-w-[200px] italic hidden sm:inline opacity-70">
-              {item['条件or効果']}
-            </span>
+              {tabName === 'ST' && item['免'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">免: {item['免']}</span>}
+              {(tabName === '武器' || tabName === 'コア') && item['種別'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">{item['種別']}</span>}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2 pt-2 border-t border-slate-800/50">
+             {itemEntries.map(([key, val]) => (
+                val && !['レアリティ', 'Rarity', 'Name', '名前', '機体名', '武器名', '日本名', '免', '種別', '要度'].includes(key) && (
+                  <div key={key} className="flex justify-between text-[11px] border-b border-slate-800/30 pb-1">
+                    <span className="text-slate-500 font-bold uppercase tracking-tighter">{key}</span>
+                    <span className="text-slate-300 ml-4 text-right">{String(val)}</span>
+                  </div>
+                )
+             ))}
+          </div>
+
+          {/* 拡張データ（サブ行） */}
+          {item._subRows && item._subRows.length > 0 && (
+            <div className="space-y-2 mt-2">
+              {item._subRows.map((sub: any, idx: number) => (
+                <div key={idx} className="p-3 bg-black/20 rounded-lg border border-slate-800/50 text-[11px]">
+                  {Object.entries(sub).map(([sk, sv]) => (
+                    sv && (
+                      <div key={sk} className="flex flex-col mb-1 last:mb-0">
+                        <span className="text-[9px] text-slate-600 font-bold uppercase">{sk}</span>
+                        <span className="text-slate-400 leading-relaxed">{String(sv)}</span>
+                      </div>
+                    )
+                  ))}
+                </div>
+              ))}
+            </div>
           )}
-          {item._subRows?.length > 0 && <span className="text-[10px] text-blue-400 border border-blue-900/50 px-1.5 rounded">+{item._subRows.length} rows</span>}
         </div>
-        <ChevronRight size={14} className="text-slate-700 group-hover:text-blue-500 transition-all group-hover:translate-x-1" />
       </div>
     );
   }
 
   return (
-    <div 
-      className="bg-[#161b22] border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-500 transition-all flex flex-col h-full shadow-lg cursor-pointer group hover:shadow-blue-900/10 active:scale-[0.99]"
-      onClick={() => onSelect(item)}
-    >
+    <div className="bg-[#161b22] border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-500 transition-all flex flex-col h-full shadow-lg group">
       <div className={`p-4 border-b ${rarityClass}`}>
         <div className="flex justify-between items-center mb-1">
           <span className="text-[10px] font-black tracking-widest uppercase opacity-70">{rarity}</span>
           <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-1" />
         </div>
-        <h3 className="text-white font-black text-lg tracking-tight group-hover:text-blue-400 transition-colors flex items-baseline gap-2">
+        <h3 className="text-white font-black text-lg tracking-tight flex items-baseline gap-2">
           <span className="truncate">{name}</span>
           {tabName === 'コア' && item['要度'] && (
             <span className="text-[10px] font-bold text-slate-500 whitespace-nowrap">要度: {item['要度']}</span>
@@ -384,31 +339,48 @@ const ItemCard = ({ item, mode, tabName, onSelect }: any) => {
         </h3>
       </div>
       
-      <div className="p-4 flex-1 overflow-hidden">
+      <div className="p-4 flex-1">
         <div className="space-y-4">
-          {tabName === 'コア' && (
-            <div className="space-y-3 mb-4 border-b border-slate-800/80 pb-3">
-              {item['条件or効果'] && (
-                <div className="flex flex-col gap-1">
-                  <span className="text-slate-500 uppercase tracking-tighter font-bold text-[9px]">条件or効果</span>
-                  <span className="text-blue-400 font-bold text-xs underline decoration-blue-500/40 underline-offset-4 leading-relaxed line-clamp-2">
-                    {item['条件or効果']}
-                  </span>
-                </div>
-              )}
+          {tabName === 'コア' && item['条件or効果'] && (
+            <div className="space-y-1 mb-4 border-b border-slate-800/80 pb-3">
+              <span className="text-slate-500 uppercase tracking-tighter font-bold text-[9px]">条件or効果</span>
+              <span className="text-blue-400 font-bold text-xs underline decoration-blue-500/40 underline-offset-4 leading-relaxed block">
+                {item['条件or効果']}
+              </span>
             </div>
           )}
 
           <div className="space-y-2">
-            {itemEntries.slice(1, 8).map(([key, val]) => (
+            {itemEntries.map(([key, val]) => (
               val && !['レアリティ', 'Rarity', 'Name', '名前', '機体名', '武器名', '日本名', '免', '種別', '条件or効果', '要度'].includes(key) && (
                 <div key={key} className="flex justify-between text-[11px] border-b border-slate-800/30 pb-1.5 last:border-0">
                   <span className="text-slate-500 uppercase tracking-tighter font-bold">{key}</span>
-                  <span className="text-slate-300 font-medium text-right ml-2 truncate">{String(val)}</span>
+                  <span className="text-slate-300 font-medium text-right ml-2">{String(val)}</span>
                 </div>
               )
             ))}
           </div>
+
+          {/* サブ行（拡張データ） */}
+          {item._subRows && item._subRows.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-slate-800">
+              <p className="text-[10px] text-blue-400 font-black mb-3 tracking-widest uppercase flex items-center gap-2">
+                <Database size={12} /> EXTENDED DATA
+              </p>
+              {item._subRows.map((sub: any, idx: number) => (
+                <div key={idx} className="mb-4 last:mb-0 p-3 bg-black/20 rounded-xl border border-slate-800/50">
+                  {Object.entries(sub).map(([sk, sv]) => (
+                    sv && (
+                      <div key={sk} className="flex flex-col mb-2 last:mb-0">
+                        <span className="text-[9px] text-slate-600 font-bold uppercase">{sk}</span>
+                        <span className="text-xs text-slate-400 leading-relaxed">{String(sv)}</span>
+                      </div>
+                    )
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
