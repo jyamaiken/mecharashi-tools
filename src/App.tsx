@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Shield, User, Sword, RefreshCw, ChevronRight, LayoutGrid, List, AlertCircle, Database, Box, Layers, Filter, Languages, Cpu } from 'lucide-react';
 
-const App = () => {
-  const [db, setDb] = useState(null);
+const App: React.FC = () => {
+  const [db, setDb] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [activeTab, setActiveTab] = useState('');
-  const [selectedSubGroup, setSelectedSubGroup] = useState('すべて');
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<string>('');
+  const [selectedSubGroup, setSelectedSubGroup] = useState<string>('すべて');
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   useEffect(() => {
     const loadDatabase = async () => {
@@ -24,7 +24,7 @@ const App = () => {
         setDb(data);
         const firstSheet = Object.keys(data)[0];
         setActiveTab(firstSheet);
-      } catch (err) {
+      } catch (err: any) {
         setError(err.message || 'データの読み込みに失敗しました。');
       } finally {
         setLoading(false);
@@ -33,6 +33,7 @@ const App = () => {
     loadDatabase();
   }, []);
 
+  // タブが切り替わった際にサブグループを「すべて」にリセットする
   useEffect(() => {
     if (!db || !activeTab) return;
 
@@ -43,7 +44,7 @@ const App = () => {
     }
   }, [activeTab, db]);
 
-  const getTabIcon = (name) => {
+  const getTabIcon = (name: string) => {
     if (name.includes('操縦士') || name.includes('キャラST')) return <User size={18} />;
     if (name.includes('キャラ訳')) return <Languages size={18} />;
     if (name.includes('機体') || name.includes('メカ') || name.includes('ユニット')) return <Shield size={18} />;
@@ -55,56 +56,40 @@ const App = () => {
 
   const sheetNames = db ? Object.keys(db) : [];
   
-  // データの正規化ロジック
+  // データの正規化（キャラ訳などの複数行データを統合）
   const getProcessedData = () => {
     const rawData = (db && activeTab && db[activeTab]) ? db[activeTab] : [];
-    if (rawData.length === 0) return [];
+    
+    if (activeTab === 'キャラ訳') {
+      const grouped: any[] = [];
+      let currentItem: any = null;
 
-    let dataToProcess = rawData;
-    let keyMapping = null;
-
-    // 1. キャラSTのみ：2行にわたるヘッダーを統合
-    if (activeTab === 'キャラST' && rawData.length > 1) {
-      const subHeaderRow = rawData[0];
-      dataToProcess = rawData.slice(1);
-      
-      keyMapping = {};
-      let lastValidMainHeader = '';
-
-      Object.keys(subHeaderRow).forEach(key => {
-        // メインヘッダーの特定 (Unnamed対策)
-        if (!key.includes('Unnamed')) {
-          lastValidMainHeader = key;
-        }
-        const subHeaderValue = String(subHeaderRow[key] || '').trim();
-        
-        // 統合キーの作成
-        if (subHeaderValue && subHeaderValue !== lastValidMainHeader) {
-          keyMapping[key] = `${lastValidMainHeader}_${subHeaderValue}`;
-        } else {
-          keyMapping[key] = lastValidMainHeader;
+      rawData.forEach((row: any) => {
+        const name = row['名前'] || row['Name'] || Object.values(row)[0];
+        if (name && String(name).trim() !== "") {
+          if (currentItem) grouped.push(currentItem);
+          currentItem = { ...row, _subRows: [] };
+        } else if (currentItem) {
+          currentItem._subRows.push(row);
         }
       });
+      if (currentItem) grouped.push(currentItem);
+      return grouped;
     }
-
-    // 2. データの正規化と独立処理（統合ロジックを排除し全行を独立させる）
-    return dataToProcess.map((row) => {
-      const normalizedRow = {};
-      Object.keys(row).forEach(key => {
-        const newKey = keyMapping ? (keyMapping[key] || key) : key;
-        normalizedRow[newKey] = row[key];
-      });
-      return normalizedRow;
-    });
+    
+    return rawData;
   };
 
   const processedData = getProcessedData();
   const currentData = (db && activeTab && db[activeTab]) ? db[activeTab] : [];
   
-  const searchedItems = processedData.filter((item) =>
+  // 検索フィルタリング
+  const searchedItems = processedData.filter((item: any) =>
     Object.values(item).some(val => 
       String(val).toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    ) || (item._subRows && item._subRows.some((sub: any) => 
+      Object.values(sub).some(sv => String(sv).toLowerCase().includes(searchTerm.toLowerCase()))
+    ))
   );
 
   const renderContent = () => {
@@ -119,15 +104,16 @@ const App = () => {
     const groupField = activeTab === 'ST' ? '免' : (activeTab === '武器' || activeTab === 'コア') ? '種別' : null;
 
     if (groupField) {
-      const uniqueGroups = [...new Set(currentData.map((item) => String(item[groupField] || '未設定')))].sort();
+      const uniqueGroups = [...new Set(currentData.map((item: any) => String(item[groupField] || '未設定')))].sort();
       const allGroups = ['すべて', ...uniqueGroups];
       
       const groupFilteredItems = selectedSubGroup === 'すべて' 
         ? searchedItems 
-        : searchedItems.filter((item) => String(item[groupField] || '未設定') === selectedSubGroup);
+        : searchedItems.filter((item: any) => String(item[groupField] || '未設定') === selectedSubGroup);
 
       return (
         <div className="space-y-6">
+          {/* サブタブ選択 */}
           <div className="flex flex-wrap gap-2 p-2 bg-[#161b22] border border-slate-800 rounded-xl shadow-inner shadow-black/40">
             <div className="flex items-center gap-2 px-3 text-slate-500 border-r border-slate-800 mr-1">
               <Filter size={14} />
@@ -148,8 +134,9 @@ const App = () => {
             ))}
           </div>
 
+          {/* 表示 */}
           <div className={viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" : "space-y-2"}>
-            {groupFilteredItems.map((item, i) => (
+            {groupFilteredItems.map((item: any, i: number) => (
               <ItemCard key={i} item={item} mode={viewMode} tabName={activeTab} />
             ))}
           </div>
@@ -159,7 +146,7 @@ const App = () => {
 
     return (
       <div className={viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" : "space-y-2"}>
-        {searchedItems.map((item, i) => (
+        {searchedItems.map((item: any, i: number) => (
           <ItemCard key={i} item={item} mode={viewMode} tabName={activeTab} />
         ))}
       </div>
@@ -244,7 +231,7 @@ const App = () => {
       <footer className="py-12 border-t border-slate-900 bg-[#0a0c10] px-4">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-slate-700 text-[10px] tracking-[0.4em] uppercase font-bold text-center md:text-left">
-            Mecharashi dynamic archive system v3.1
+            Mecharashi dynamic archive system v2.7
           </p>
           <div className="text-[9px] text-slate-600 text-center md:text-right leading-relaxed opacity-60 hover:opacity-100 transition-opacity">
             <p>作成者：vinotamon</p>
@@ -256,7 +243,7 @@ const App = () => {
   );
 };
 
-const NavButton = ({ active, icon, label, onClick, count }) => (
+const NavButton = ({ active, icon, label, onClick, count }: any) => (
   <button
     onClick={onClick}
     className={`flex items-center gap-3 px-6 py-2.5 rounded-xl text-sm font-bold transition-all border ${
@@ -271,42 +258,20 @@ const NavButton = ({ active, icon, label, onClick, count }) => (
   </button>
 );
 
-const ItemCard = ({ item, mode, tabName }) => {
+const ItemCard = ({ item, mode, tabName }: any) => {
   const itemEntries = Object.entries(item).filter(([k]) => !k.startsWith('_'));
   
-  // 名前に関連するキーを動的に探す（結合されたキー名も考慮）
-  const findNameKey = (obj) => {
-    // キャラSTの場合は統合キー(名前_トワイライトなど)を優先
-    return Object.keys(obj).find(k => k.includes('名前') || k.includes('Name')) || null;
-  };
+  let name = '';
+  if (tabName === 'ST') {
+    name = item['日本名'] || item['名前'] || (itemEntries.length > 0 ? itemEntries[0][1] : 'Unknown');
+  } else {
+    name = item['名前'] || item['Name'] || item['機体名'] || item['武器名'] || (itemEntries.length > 0 ? itemEntries[0][1] : 'Unknown');
+  }
 
-  const nameKey = findNameKey(item);
-
-  // 名前とレアリティの特定
-  const getName = (obj) => {
-    if (tabName === 'キャラST' && nameKey) {
-      // 特定のキーにある値をタイトルにする
-      return String(obj[nameKey] || '').trim() || 'Unknown';
-    }
-    return obj['名前'] || obj['Name'] || obj['日本名'] || obj['機体名'] || obj['武器名'] ||
-           obj['基本情報_名前'] || obj['基本情報_Name'] || obj['基本情報_日本名'] ||
-           (Object.values(obj).find(v => v && typeof v === 'string' && v.length > 1) || 'Unknown');
-  };
-
-  const name = getName(item);
-  const rarity = item['レアリティ'] || item['Rarity'] || item['基本情報_レアリティ'] || 'N';
-  const rarityClass = String(rarity).includes('S') ? 'border-orange-500/30 bg-orange-500/5 text-orange-400' 
-                   : String(rarity).includes('A') ? 'border-purple-500/30 bg-purple-500/5 text-purple-400'
+  const rarity = item['レアリティ'] || item['Rarity'] || 'N';
+  const rarityClass = rarity.includes('S') ? 'border-orange-500/30 bg-orange-500/5 text-orange-400' 
+                   : rarity.includes('A') ? 'border-purple-500/30 bg-purple-500/5 text-purple-400'
                    : 'border-blue-500/30 bg-blue-500/5 text-blue-400';
-
-  // 情報として表示するキーのフィルタリング
-  const displayEntries = itemEntries.filter(([key]) => {
-    if (tabName === 'キャラST') {
-      // タイトルに使用したキーを詳細情報から完全に外す
-      return key !== nameKey && !key.includes('レアリティ') && !key.includes('Rarity');
-    }
-    return !['レアリティ', 'Rarity', 'Name', '名前', '機体名', '武器名', '日本名'].includes(key);
-  });
 
   if (mode === 'list') {
     return (
@@ -314,26 +279,46 @@ const ItemCard = ({ item, mode, tabName }) => {
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className={`w-1 h-6 rounded-full ${String(rarity).includes('S') ? 'bg-orange-500' : String(rarity).includes('A') ? 'bg-purple-500' : 'bg-blue-500'}`} />
+              <div className={`w-1 h-6 rounded-full ${rarity.includes('S') ? 'bg-orange-500' : rarity.includes('A') ? 'bg-purple-500' : 'bg-blue-500'}`} />
               <span className="text-white font-bold flex items-center gap-2">
                 {name}
                 {tabName === 'コア' && item['要度'] && (
                   <span className="text-[10px] text-slate-500 font-normal italic">(要度: {item['要度']})</span>
                 )}
               </span>
-              {item['免'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">免: {item['免']}</span>}
-              {item['種別'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">{item['種別']}</span>}
+              {tabName === 'ST' && item['免'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">免: {item['免']}</span>}
+              {(tabName === '武器' || tabName === 'コア') && item['種別'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">{item['種別']}</span>}
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-2 pt-2 border-t border-slate-800/50">
-             {displayEntries.map(([key, val]) => (
-                <div key={key} className="flex justify-between text-[11px] border-b border-slate-800/30 pb-1">
-                  <span className="text-slate-500 font-bold uppercase tracking-tighter">{key}</span>
-                  <span className="text-slate-300 ml-4 text-right">{val !== undefined && val !== null ? String(val) : ''}</span>
-                </div>
+             {itemEntries.map(([key, val]) => (
+                val && !['レアリティ', 'Rarity', 'Name', '名前', '機体名', '武器名', '日本名', '免', '種別', '要度'].includes(key) && (
+                  <div key={key} className="flex justify-between text-[11px] border-b border-slate-800/30 pb-1">
+                    <span className="text-slate-500 font-bold uppercase tracking-tighter">{key}</span>
+                    <span className="text-slate-300 ml-4 text-right">{String(val)}</span>
+                  </div>
+                )
              ))}
           </div>
+
+          {/* 拡張データ（サブ行） */}
+          {item._subRows && item._subRows.length > 0 && (
+            <div className="space-y-2 mt-2">
+              {item._subRows.map((sub: any, idx: number) => (
+                <div key={idx} className="p-3 bg-black/20 rounded-lg border border-slate-800/50 text-[11px]">
+                  {Object.entries(sub).map(([sk, sv]) => (
+                    sv && (
+                      <div key={sk} className="flex flex-col mb-1 last:mb-0">
+                        <span className="text-[9px] text-slate-600 font-bold uppercase">{sk}</span>
+                        <span className="text-slate-400 leading-relaxed">{String(sv)}</span>
+                      </div>
+                    )
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -356,7 +341,7 @@ const ItemCard = ({ item, mode, tabName }) => {
       
       <div className="p-4 flex-1">
         <div className="space-y-4">
-          {item['条件or効果'] && (
+          {tabName === 'コア' && item['条件or効果'] && (
             <div className="space-y-1 mb-4 border-b border-slate-800/80 pb-3">
               <span className="text-slate-500 uppercase tracking-tighter font-bold text-[9px]">条件or効果</span>
               <span className="text-blue-400 font-bold text-xs underline decoration-blue-500/40 underline-offset-4 leading-relaxed block">
@@ -366,15 +351,36 @@ const ItemCard = ({ item, mode, tabName }) => {
           )}
 
           <div className="space-y-2">
-            {displayEntries.map(([key, val]) => (
-              !['免', '種別', '条件or効果', '要度'].includes(key) && (
+            {itemEntries.map(([key, val]) => (
+              val && !['レアリティ', 'Rarity', 'Name', '名前', '機体名', '武器名', '日本名', '免', '種別', '条件or効果', '要度'].includes(key) && (
                 <div key={key} className="flex justify-between text-[11px] border-b border-slate-800/30 pb-1.5 last:border-0">
-                  <span className="text-slate-500 uppercase tracking-tighter font-bold leading-tight mr-2">{key}</span>
-                  <span className="text-slate-300 font-medium text-right ml-2 break-all">{val !== undefined && val !== null ? String(val) : ''}</span>
+                  <span className="text-slate-500 uppercase tracking-tighter font-bold">{key}</span>
+                  <span className="text-slate-300 font-medium text-right ml-2">{String(val)}</span>
                 </div>
               )
             ))}
           </div>
+
+          {/* サブ行（拡張データ） */}
+          {item._subRows && item._subRows.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-slate-800">
+              <p className="text-[10px] text-blue-400 font-black mb-3 tracking-widest uppercase flex items-center gap-2">
+                <Database size={12} /> EXTENDED DATA
+              </p>
+              {item._subRows.map((sub: any, idx: number) => (
+                <div key={idx} className="mb-4 last:mb-0 p-3 bg-black/20 rounded-xl border border-slate-800/50">
+                  {Object.entries(sub).map(([sk, sv]) => (
+                    sv && (
+                      <div key={sk} className="flex flex-col mb-2 last:mb-0">
+                        <span className="text-[9px] text-slate-600 font-bold uppercase">{sk}</span>
+                        <span className="text-xs text-slate-400 leading-relaxed">{String(sv)}</span>
+                      </div>
+                    )
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
