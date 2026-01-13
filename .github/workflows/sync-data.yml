@@ -7,13 +7,15 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    # 【重要】書き込み権限を明示的に付与
     permissions:
       contents: write
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          # 最新の変更を確実に取得するために fetch-depth: 0 を指定
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -33,4 +35,16 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add public/data/*.json
-          git diff --quiet && git diff --staged --quiet || (git commit -m "chore: update game data from sheets" && git push)
+          
+          # 変更があるか確認
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          
+          git commit -m "chore: update game data from sheets"
+          
+          # 【重要】プッシュ前に最新のリポジトリ状態を強制的に取り込む（リベース）
+          git pull --rebase origin main
+          
+          git push origin main
