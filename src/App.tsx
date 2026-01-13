@@ -78,7 +78,7 @@ const App = () => {
         }
         const subHeaderValue = String(subHeaderRow[key] || '').trim();
         
-        // 統合キーの作成 (例: ST_名前)
+        // 統合キーの作成 (例: ST_名前、名前_トワイライトなど)
         if (subHeaderValue && subHeaderValue !== lastValidMainHeader) {
           keyMapping[key] = `${lastValidMainHeader}_${subHeaderValue}`;
         } else {
@@ -244,7 +244,7 @@ const App = () => {
       <footer className="py-12 border-t border-slate-900 bg-[#0a0c10] px-4">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-slate-700 text-[10px] tracking-[0.4em] uppercase font-bold text-center md:text-left">
-            Mecharashi dynamic archive system v2.9
+            Mecharashi dynamic archive system v3.0
           </p>
           <div className="text-[9px] text-slate-600 text-center md:text-right leading-relaxed opacity-60 hover:opacity-100 transition-opacity">
             <p>作成者：vinotamon</p>
@@ -274,10 +274,18 @@ const NavButton = ({ active, icon, label, onClick, count }) => (
 const ItemCard = ({ item, mode, tabName }) => {
   const itemEntries = Object.entries(item).filter(([k]) => !k.startsWith('_'));
   
+  // 「名前」に関連するキーを動的に探す
+  const findNameKey = (obj) => {
+    // キャラSTの場合は「名前」や「Name」を含むキーを優先的に探す
+    return Object.keys(obj).find(k => k.includes('名前') || k.includes('Name')) || null;
+  };
+
+  const nameKey = findNameKey(item);
+
   // 名前とレアリティの特定
   const getName = (obj) => {
-    if (tabName === 'キャラST') {
-      return obj['ST_名前'] || obj['ST_Name'] || obj['基本情報_名前'] || obj['名前'] || 'Unknown';
+    if (tabName === 'キャラST' && nameKey) {
+      return obj[nameKey] || 'Unknown';
     }
     return obj['名前'] || obj['Name'] || obj['日本名'] || obj['機体名'] || obj['武器名'] ||
            obj['基本情報_名前'] || obj['基本情報_Name'] || obj['基本情報_日本名'] ||
@@ -293,7 +301,8 @@ const ItemCard = ({ item, mode, tabName }) => {
   // 情報として表示するキーのフィルタリング
   const displayEntries = itemEntries.filter(([key]) => {
     if (tabName === 'キャラST') {
-      return !['ST_名前', 'ST_Name', '基本情報_名前', '名前'].includes(key);
+      // タイトルに使用したキー(nameKey)とレアリティ関連を詳細情報から除外
+      return key !== nameKey && !key.includes('レアリティ') && !key.includes('Rarity');
     }
     return !['レアリティ', 'Rarity', 'Name', '名前', '機体名', '武器名', '日本名'].includes(key);
   });
