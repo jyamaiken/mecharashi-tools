@@ -14,9 +14,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # mainブランチを明示的に指定
           ref: main
-          fetch-depth: 0
+          fetch-depth: 0 # 全履歴を取得してリベースを可能にする
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -29,6 +28,7 @@ jobs:
       - name: Run sync script
         run: python scripts/sync_sheets.py
         env:
+          # GitHub Settings > Secrets > Actions に登録した ID を使用
           SHEET_ID: ${{ secrets.SHEET_ID }}
 
       - name: Commit and Push changes
@@ -36,20 +36,21 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # 変更をステージング
+          # データの変更をステージング
           git add public/data/*.json
           
-          # 変更があるか確認
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
+          # 変更がない場合は終了
+          if git diff --staged --quiet; i; then
+            echo "No changes detected in data. Skipping push."
             exit 0
           fi
           
-          # 最新の状態を取り込んでからコミット
+          # 競合回避のための最新化処理
           git fetch origin main
-          git rebase origin/main
+          git reset --soft origin/main
           
-          git commit -m "chore: update game data from sheets"
+          git commit -m "chore: update game data from sheets [skip ci]"
           
-          # プッシュを実行。失敗した場合は再度リベースを試みてプッシュ。
-          git push origin main || (git pull --rebase origin main && git push origin main)
+          # 強制的にリベースしてプッシュ
+          git pull --rebase origin main
+          git push origin main
