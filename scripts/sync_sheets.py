@@ -24,6 +24,9 @@ FALLBACK_SHEETS = {
     "編集中": "1725386654"
 }
 
+# 2行目までがタイトル（データが3行目から始まる）シートのリスト
+TWO_ROW_HEADER_SHEETS = ["キャラST", "キャラ訳", "ST", "コア"]
+
 # ==========================================
 # 処理エリア
 # ==========================================
@@ -38,7 +41,6 @@ def get_all_sheets_metadata(sheet_id):
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36'}
         response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
-        # メタデータ取得時もUTF-8を指定
         content = response.content.decode('utf-8')
         
         matches = re.findall(r'\[(\d+),"([^"]+)",(?:null|true|false|0),', content)
@@ -59,7 +61,6 @@ def fetch_csv(sheet_id, gid):
     try:
         response = requests.get(url, timeout=15)
         response.raise_for_status()
-        # 【重要】文字化け対策: response.textの代わりにcontentを明示的にutf-8でデコード
         return response.content.decode('utf-8')
     except Exception as e:
         print(f"!!! GID {gid} のCSV取得エラー: {e}")
@@ -84,8 +85,11 @@ def main():
         
         if csv_text and len(csv_text.strip()) > 0:
             try:
-                # Pandas読み込み時も明示的にutf-8を想定
-                df = pd.read_csv(StringIO(csv_text), encoding='utf-8')
+                # ヘッダー位置の判定
+                # 2行目までタイトルの場合はheader=1（0開始なので2行目をカラム名にする）を指定
+                header_index = 1 if name in TWO_ROW_HEADER_SHEETS else 0
+                
+                df = pd.read_csv(StringIO(csv_text), encoding='utf-8', header=header_index)
                 df = df.dropna(how='all').fillna("")
                 
                 if len(df) > 0:
@@ -95,7 +99,7 @@ def main():
                     with open(f'{output_path}/{safe_name}.json', 'w', encoding='utf-8') as f:
                         json.dump(records, f, ensure_ascii=False, indent=2)
                     
-                    print(f"成功: {len(df)} 件取得")
+                    print(f"成功: {len(df)} 件取得 (ヘッダー行: {header_index + 1})")
                     valid_count += 1
                 else:
                     db_full[name] = []
