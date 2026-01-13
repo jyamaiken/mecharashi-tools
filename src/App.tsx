@@ -57,7 +57,7 @@ const App: React.FC = () => {
   
   // データの正規化（キャラ訳などの複数行データを統合）
   const getProcessedData = () => {
-    const rawData = db?.[activeTab] || [];
+    const rawData = (db && activeTab && db[activeTab]) ? db[activeTab] : [];
     
     if (activeTab === 'キャラ訳') {
       const grouped: any[] = [];
@@ -82,6 +82,7 @@ const App: React.FC = () => {
   };
 
   const processedData = getProcessedData();
+  const currentData = (db && activeTab && db[activeTab]) ? db[activeTab] : [];
   
   // 検索フィルタリング
   const searchedItems = processedData.filter((item: any) =>
@@ -268,9 +269,9 @@ const ItemCard = ({ item, mode, tabName }: any) => {
   
   let name = '';
   if (tabName === 'ST') {
-    name = item['日本名'] || item['名前'] || itemEntries[0][1];
+    name = item['日本名'] || item['名前'] || (itemEntries.length > 0 ? itemEntries[0][1] : 'Unknown');
   } else {
-    name = item['名前'] || item['Name'] || item['機体名'] || item['武器名'] || itemEntries[0][1];
+    name = item['名前'] || item['Name'] || item['機体名'] || item['武器名'] || (itemEntries.length > 0 ? itemEntries[0][1] : 'Unknown');
   }
 
   const rarity = item['レアリティ'] || item['Rarity'] || 'N';
