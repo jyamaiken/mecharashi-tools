@@ -12,120 +12,135 @@ from io import StringIO
 # スプレッドシートのID
 SHEET_ID = os.environ.get('SHEET_ID', '1cG37dxatVK7go9rDvu4VMrp1XN4qCvgbVyyiqHqLBy0')
 
+# 【バックアップ】自動取得に失敗した場合や、特定のシートを確実に取得したい場合用
+# ユーザーから提供された最新のリストを反映しました
+FALLBACK_SHEETS = {
+    "キャラST": "401271395",
+    "予定": "1955477458",
+    "キャラ訳": "347170430",
+    "ST": "1007690338",
+    "武器": "122249602",
+    "コア": "838155022",
+    "ユニット": "1191652583",
+    "強敵": "1085841251",
+    "他リンク": "1438940995",
+    "編集中": "1725386654"
+}
+
 # ==========================================
 # 処理エリア
 # ==========================================
 
+def sanitize_filename(filename):
+    """ファイル名に使えない記号を除去する"""
+    return re.sub(r'[\\/*?:"<>|]', "", filename)
+
 def get_all_sheets_metadata(sheet_id):
-    """スプレッドシートのHTMLから全シートの名称とGIDを自動抽出する"""
+    """スプレッドシートの内部データから全シートの名称とGIDを抽出する"""
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
+    sheets = {}
+    
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'}
+        # ブラウザのように振る舞うためのヘッダー
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36'
+        }
         response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
         content = response.text
         
-        sheets = {}
-
-        # パターン1: bootstrapData 内のシート情報 (より広範な一致を狙う)
-        # 形式例: {"1":"シート名","2":12345} や {"name":"シート名","id":12345}
-        # JSON風の文字列から名前と数値を抽出
-        raw_matches = re.findall(r'\{"1":"([^"]+)","2":(\d+)', content)
-        for name, gid in raw_matches:
-            if name not in sheets:
+        # パターン1: bootstrapData 内の配列構造 (もっとも一般的)
+        # [0, "シート名", null, 0, null, null, null, null, null, 123456789] 
+        # のような構造を探す
+        matches = re.findall(r'\[(\d+),"([^"]+)",(?:null|true|false|0),', content)
+        for gid, name in matches:
+            if name and gid not in sheets.values():
                 sheets[name] = gid
 
-        # パターン2: 古い形式や別プロパティの検索
+        # パターン2: JSONライクなメタデータ構造
         if not sheets:
-            raw_matches = re.findall(r'\{"name":"([^"]+)","id":(\d+)', content)
-            for name, gid in raw_matches:
-                if name not in sheets:
-                    sheets[name] = gid
+            matches = re.findall(r'\{"1":"([^"]+)","2":(\d+)', content)
+            for name, gid in matches:
+                sheets[name] = gid
 
-        # パターン3: スクリプトタグ内の sheetInfo などの構造を狙う
+        # パターン3: 別形式のJSON構造
         if not sheets:
-            # 非常に単純な正規表現でIDと名前っぽいペアを拾う
-            raw_matches = re.findall(r'gid[:=]\s*(\d+).*?name[:=]\s*"([^"]+)"', content)
-            for gid, name in raw_matches:
-                if name not in sheets:
-                    sheets[name] = gid
+            matches = re.findall(r'\{"name":"([^"]+)","id":(\d+)', content)
+            for name, gid in matches:
+                sheets[name] = gid
 
         return sheets
     except Exception as e:
-        print(f"!!! メタデータの取得失敗: {e}")
+        print(f"メタデータ自動取得中にエラー: {e}")
         return {}
 
 def fetch_csv(sheet_id, gid):
-    """指定されたGIDのCSVデータを取得する"""
+    """CSVデータを取得する"""
     url = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?format=csv&gid={gid}"
     try:
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(url, headers=headers, timeout=15)
+        response = requests.get(url, timeout=15)
         response.raise_for_status()
         return response.text
     except Exception as e:
-        print(f"!!! GID {gid} の取得エラー: {e}")
+        print(f"!!! GID {gid} のCSV取得エラー: {e}")
         return None
 
 def main():
     output_path = 'public/data'
     os.makedirs(output_path, exist_ok=True)
     
-    print(f"Target Sheet ID: {SHEET_ID}")
-    discovered_sheets = get_all_sheets_metadata(SHEET_ID)
+    print(f"ターゲット Sheet ID: {SHEET_ID}")
     
-    if not discovered_sheets:
-        print("致命的エラー: シートが1つも見つかりませんでした。")
-        # デバッグ用にHTMLの一部を出力（Actionsのログで確認用）
-        return
+    # 1. 自動検出を試みる
+    discovered = get_all_sheets_metadata(SHEET_ID)
+    
+    # 2. 自動検出の結果とバックアップを統合
+    # 自動検出で見つかったものを優先し、見つからなかった分をバックアップで補完
+    final_sheets = {**FALLBACK_SHEETS, **discovered}
 
-    print(f"発見されたシート構成: {json.dumps(discovered_sheets, ensure_ascii=False)}")
+    print(f"処理対象シート: {json.dumps(final_sheets, ensure_ascii=False)}")
     
     db_full = {}
     valid_count = 0
 
-    for name, gid in discovered_sheets.items():
-        # キー名は正規化（空白除去など）
-        key = name.strip()
-        print(f"--- Fetching: {key} (GID: {gid}) ---")
+    for name, gid in final_sheets.items():
+        # ファイル名として安全な名前に変換
+        safe_name = sanitize_filename(name)
+        print(f"--- 取得中: {name} (GID: {gid}) ---")
         
         csv_text = fetch_csv(SHEET_ID, gid)
         
-        if csv_text:
+        if csv_text and len(csv_text.strip()) > 0:
             try:
-                # 1行目が空でないかチェック
-                if not csv_text.strip():
-                    print(f"結果: {key} は中身が空です")
-                    db_full[key] = []
-                    continue
-
                 df = pd.read_csv(StringIO(csv_text))
                 df = df.dropna(how='all').fillna("")
                 
                 if len(df) > 0:
                     records = df.to_dict(orient='records')
-                    db_full[key] = records
+                    db_full[name] = records
                     
-                    with open(f'{output_path}/{key}.json', 'w', encoding='utf-8') as f:
+                    # 個別保存 (ファイル名は記号抜き)
+                    with open(f'{output_path}/{safe_name}.json', 'w', encoding='utf-8') as f:
                         json.dump(records, f, ensure_ascii=False, indent=2)
                     
                     print(f"成功: {len(df)} 件取得")
                     valid_count += 1
                 else:
-                    print(f"警告: {key} にデータ行がありません")
-                    db_full[key] = []
+                    print(f"警告: {name} はヘッダーのみ、または空です。")
+                    db_full[name] = []
             except Exception as e:
-                print(f"解析失敗 ({key}): {e}")
-                db_full[key] = []
+                print(f"解析失敗 ({name}): {e}")
+                db_full[name] = []
         else:
-            db_full[key] = []
+            print(f"失敗: {name} のデータが取得できませんでした。")
+            db_full[name] = []
         
     if valid_count > 0:
         with open(f'{output_path}/db.json', 'w', encoding='utf-8') as f:
             json.dump(db_full, f, ensure_ascii=False, indent=2)
-        print(f"完了: db.json を更新しました。")
+        print(f"完了: 合計 {valid_count} シートを更新しました。")
     else:
-        print("エラー: 読み込めるデータが1件もありませんでした。")
+        print("エラー: 有効なデータが1つも取得できませんでした。")
 
 if __name__ == "__main__":
     main()
