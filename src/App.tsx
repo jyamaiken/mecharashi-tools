@@ -6,7 +6,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('');
-  const [selectedSubGroup, setSelectedSubGroup] = useState<string>('');
+  const [selectedSubGroup, setSelectedSubGroup] = useState<string>('すべて');
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
@@ -33,18 +33,12 @@ const App: React.FC = () => {
     loadDatabase();
   }, []);
 
+  // タブが切り替わった際にサブグループを「すべて」にリセットする
   useEffect(() => {
     if (!db || !activeTab) return;
 
-    let groupField = '';
-    if (activeTab === 'ST') groupField = '免';
-    else if (activeTab === '武器') groupField = '種別';
-
-    if (groupField && db[activeTab]) {
-      const groups = [...new Set(db[activeTab].map((item: any) => String(item[groupField] || '未設定')))].sort();
-      if (groups.length > 0) {
-        setSelectedSubGroup(groups[0]);
-      }
+    if (activeTab === 'ST' || activeTab === '武器') {
+      setSelectedSubGroup('すべて');
     } else {
       setSelectedSubGroup('');
     }
@@ -110,11 +104,18 @@ const App: React.FC = () => {
     const groupField = activeTab === 'ST' ? '免' : activeTab === '武器' ? '種別' : null;
 
     if (groupField) {
-      const allGroups = [...new Set(processedData.map((item: any) => String(item[groupField] || '未設定')))].sort();
-      const groupFilteredItems = searchedItems.filter((item: any) => String(item[groupField] || '未設定') === selectedSubGroup);
+      // 全データから存在するグループのリストを抽出してソートし、「すべて」を先頭に追加
+      const uniqueGroups = [...new Set(currentData.map((item: any) => String(item[groupField] || '未設定')))].sort();
+      const allGroups = ['すべて', ...uniqueGroups];
+      
+      // サブグループによるフィルタリング（「すべて」の場合は全表示）
+      const groupFilteredItems = selectedSubGroup === 'すべて' 
+        ? searchedItems 
+        : searchedItems.filter((item: any) => String(item[groupField] || '未設定') === selectedSubGroup);
 
       return (
         <div className="space-y-6">
+          {/* サブタブ選択 */}
           <div className="flex flex-wrap gap-2 p-2 bg-[#161b22] border border-slate-800 rounded-xl">
             <div className="flex items-center gap-2 px-3 text-slate-500 border-r border-slate-800 mr-1">
               <Filter size={14} />
@@ -135,11 +136,18 @@ const App: React.FC = () => {
             ))}
           </div>
 
-          <div className={viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" : "space-y-2"}>
-            {groupFilteredItems.map((item: any, i: number) => (
-              <ItemCard key={i} item={item} mode={viewMode} tabName={activeTab} />
-            ))}
-          </div>
+          {/* 選択されたグループのデータ表示 */}
+          {groupFilteredItems.length > 0 ? (
+            <div className={viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" : "space-y-2"}>
+              {groupFilteredItems.map((item: any, i: number) => (
+                <ItemCard key={i} item={item} mode={viewMode} tabName={activeTab} />
+              ))}
+            </div>
+          ) : (
+            <div className="py-20 text-center text-slate-600 bg-[#161b22]/30 border border-dashed border-slate-800 rounded-2xl">
+              <p>この条件に一致するデータはありません。</p>
+            </div>
+          )}
         </div>
       );
     }
@@ -208,6 +216,7 @@ const App: React.FC = () => {
           </div>
         ) : (
           <>
+            {/* メインタブ */}
             <nav className="flex flex-wrap gap-2 mb-8">
               {sheetNames.map((name) => (
                 <NavButton 
@@ -224,6 +233,7 @@ const App: React.FC = () => {
               ))}
             </nav>
 
+            {/* メインコンテンツ */}
             {renderContent()}
           </>
         )}
@@ -231,7 +241,7 @@ const App: React.FC = () => {
 
       <footer className="py-16 border-t border-slate-900 text-center bg-[#0a0c10]">
         <p className="text-slate-700 text-[10px] tracking-[0.4em] uppercase font-bold">
-          Mecharashi dynamic archive system v2.3
+          Mecharashi dynamic archive system v2.4
         </p>
       </footer>
     </div>
