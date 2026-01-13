@@ -14,7 +14,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          # 最新の変更を確実に取得するために fetch-depth: 0 を指定
+          # mainブランチを明示的に指定
+          ref: main
           fetch-depth: 0
 
       - name: Set up Python
@@ -34,6 +35,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 変更をステージング
           git add public/data/*.json
           
           # 変更があるか確認
@@ -42,9 +45,11 @@ jobs:
             exit 0
           fi
           
+          # 最新の状態を取り込んでからコミット
+          git fetch origin main
+          git rebase origin/main
+          
           git commit -m "chore: update game data from sheets"
           
-          # 【重要】プッシュ前に最新のリポジトリ状態を強制的に取り込む（リベース）
-          git pull --rebase origin main
-          
-          git push origin main
+          # プッシュを実行。失敗した場合は再度リベースを試みてプッシュ。
+          git push origin main || (git pull --rebase origin main && git push origin main)
