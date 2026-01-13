@@ -7,6 +7,10 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    # 【重要】書き込み権限を明示的に付与
+    permissions:
+      contents: write
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
