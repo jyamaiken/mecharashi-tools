@@ -55,64 +55,75 @@ const App = () => {
 
   const sheetNames = db ? Object.keys(db) : [];
   
-  // データの正規化
+  // データの正規化ロジック
   const getProcessedData = () => {
     const rawData = (db && activeTab && db[activeTab]) ? db[activeTab] : [];
     if (rawData.length === 0) return [];
 
-    // キャラ訳: 複数行を1つのアイテムに統合
-    if (activeTab === 'キャラ訳') {
-      const grouped = [];
-      let currentItem = null;
+    let dataToProcess = rawData;
+    let keyMapping = null;
 
-      rawData.forEach((row) => {
-        const name = row['名前'] || row['Name'] || Object.values(row)[0];
-        if (name && String(name).trim() !== "") {
-          if (currentItem) grouped.push(currentItem);
-          currentItem = { ...row, _subRows: [] };
-        } else if (currentItem) {
-          currentItem._subRows.push(row);
-        }
-      });
-      if (currentItem) grouped.push(currentItem);
-      return grouped;
-    }
-
-    // キャラST: 2行にわたるヘッダーを統合
+    // 1. キャラSTのみ：2行にわたるヘッダーを統合するマッピングを作成
     if (activeTab === 'キャラST' && rawData.length > 1) {
-      const subHeaderRow = rawData[0]; // 1行目をサブヘッダーとして取得
-      const dataRows = rawData.slice(1); // 2行目以降が実際のデータ
+      const subHeaderRow = rawData[0];
+      dataToProcess = rawData.slice(1);
       
-      const keyMapping = {};
+      keyMapping = {};
       let lastValidMainHeader = '';
 
       Object.keys(subHeaderRow).forEach(key => {
-        // "Unnamed" を含まない場合はメインヘッダーを更新
         if (!key.includes('Unnamed')) {
           lastValidMainHeader = key;
         }
-        
         const subHeaderValue = String(subHeaderRow[key] || '').trim();
-        
-        // メインヘッダーとサブヘッダーを結合（サブヘッダーがメインと同じなら結合しない）
         if (subHeaderValue && subHeaderValue !== lastValidMainHeader) {
           keyMapping[key] = `${lastValidMainHeader}_${subHeaderValue}`;
         } else {
           keyMapping[key] = lastValidMainHeader;
         }
       });
-
-      return dataRows.map(row => {
-        const normalizedItem = {};
-        Object.keys(row).forEach(key => {
-          const newKey = keyMapping[key] || key;
-          normalizedItem[newKey] = row[key];
-        });
-        return normalizedItem;
-      });
     }
+
+    // 2. 統合・グループ化処理（キャラ訳、キャラST等で複数行を1つのカードにまとめる）
+    const grouped = [];
+    let currentItem = null;
+
+    dataToProcess.forEach((row) => {
+      // キー名の正規化適用
+      const normalizedRow = {};
+      Object.keys(row).forEach(key => {
+        const newKey = keyMapping ? (keyMapping[key] || key) : key;
+        normalizedRow[newKey] = row[key];
+      });
+
+      // アイテムの「名前」を特定（複数の可能性をチェック）
+      const findName = (r) => {
+        return r['名前'] || r['Name'] || r['日本名'] || r['機体名'] || 
+               r['基本情報_名前'] || r['基本情報_Name'] || r['基本情報_日本名'] ||
+               (activeTab !== 'キャラST' && Object.values(r)[0]);
+      };
+
+      const nameValue = findName(normalizedRow);
+      const hasValidName = nameValue && String(nameValue).trim() !== "" && !String(nameValue).includes('Unnamed');
+
+      if (hasValidName) {
+        // 新しいアイテムの開始
+        if (currentItem) grouped.push(currentItem);
+        currentItem = { ...normalizedRow, _subRows: [] };
+      } else {
+        // 名前が空欄の場合：既存アイテムへの追加、または独立したアイテムとしての開始
+        if (currentItem) {
+          currentItem._subRows.push(normalizedRow);
+        } else {
+          // 前にアイテムがないのにデータがある場合（トワイライト等のケース）
+          // スキップせずに、この行自体を新しいアイテムとして扱う
+          currentItem = { ...normalizedRow, _subRows: [] };
+        }
+      }
+    });
     
-    return rawData;
+    if (currentItem) grouped.push(currentItem);
+    return grouped;
   };
 
   const processedData = getProcessedData();
@@ -263,7 +274,7 @@ const App = () => {
       <footer className="py-12 border-t border-slate-900 bg-[#0a0c10] px-4">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-slate-700 text-[10px] tracking-[0.4em] uppercase font-bold text-center md:text-left">
-            Mecharashi dynamic archive system v2.7
+            Mecharashi dynamic archive system v2.8
           </p>
           <div className="text-[9px] text-slate-600 text-center md:text-right leading-relaxed opacity-60 hover:opacity-100 transition-opacity">
             <p>作成者：vinotamon</p>
@@ -293,17 +304,14 @@ const NavButton = ({ active, icon, label, onClick, count }) => (
 const ItemCard = ({ item, mode, tabName }) => {
   const itemEntries = Object.entries(item).filter(([k]) => !k.startsWith('_'));
   
-  let name = '';
-  // キャラSTの場合、統合されたキー名から名前を探す（例：基本情報_名前など）
-  if (tabName === 'キャラST') {
-    const nameEntry = itemEntries.find(([k]) => k.includes('名前') || k.includes('Name'));
-    name = nameEntry ? nameEntry[1] : 'Unknown';
-  } else if (tabName === 'ST') {
-    name = item['日本名'] || item['名前'] || (itemEntries.length > 0 ? itemEntries[0][1] : 'Unknown');
-  } else {
-    name = item['名前'] || item['Name'] || item['機体名'] || item['武器名'] || (itemEntries.length > 0 ? itemEntries[0][1] : 'Unknown');
-  }
+  // 名前とレアリティの特定ロジック
+  const getName = (obj) => {
+    return obj['名前'] || obj['Name'] || obj['日本名'] || obj['機体名'] || obj['武器名'] ||
+           obj['基本情報_名前'] || obj['基本情報_Name'] || obj['基本情報_日本名'] ||
+           (Object.values(obj).find(v => v && typeof v === 'string' && v.length > 1) || 'Unknown');
+  };
 
+  const name = getName(item);
   const rarity = item['レアリティ'] || item['Rarity'] || item['基本情報_レアリティ'] || 'N';
   const rarityClass = String(rarity).includes('S') ? 'border-orange-500/30 bg-orange-500/5 text-orange-400' 
                    : String(rarity).includes('A') ? 'border-purple-500/30 bg-purple-500/5 text-purple-400'
@@ -322,8 +330,8 @@ const ItemCard = ({ item, mode, tabName }) => {
                   <span className="text-[10px] text-slate-500 font-normal italic">(要度: {item['要度']})</span>
                 )}
               </span>
-              {tabName === 'ST' && item['免'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">免: {item['免']}</span>}
-              {(tabName === '武器' || tabName === 'コア') && item['種別'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">{item['種別']}</span>}
+              {item['免'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">免: {item['免']}</span>}
+              {item['種別'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">{item['種別']}</span>}
             </div>
           </div>
 
@@ -337,6 +345,24 @@ const ItemCard = ({ item, mode, tabName }) => {
                 )
              ))}
           </div>
+
+          {/* サブ行の表示 */}
+          {item._subRows && item._subRows.length > 0 && (
+            <div className="space-y-2 mt-2">
+              {item._subRows.map((sub, idx) => (
+                <div key={idx} className="p-3 bg-black/20 rounded-lg border border-slate-800/50 text-[11px] grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {Object.entries(sub).map(([sk, sv]) => (
+                    sv && !sk.includes('Unnamed') && (
+                      <div key={sk} className="flex justify-between">
+                        <span className="text-slate-600 font-bold uppercase text-[9px]">{sk}</span>
+                        <span className="text-slate-400 text-right">{String(sv)}</span>
+                      </div>
+                    )
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -359,7 +385,7 @@ const ItemCard = ({ item, mode, tabName }) => {
       
       <div className="p-4 flex-1">
         <div className="space-y-4">
-          {tabName === 'コア' && item['条件or効果'] && (
+          {item['条件or効果'] && (
             <div className="space-y-1 mb-4 border-b border-slate-800/80 pb-3">
               <span className="text-slate-500 uppercase tracking-tighter font-bold text-[9px]">条件or効果</span>
               <span className="text-blue-400 font-bold text-xs underline decoration-blue-500/40 underline-offset-4 leading-relaxed block">
@@ -370,7 +396,8 @@ const ItemCard = ({ item, mode, tabName }) => {
 
           <div className="space-y-2">
             {itemEntries.map(([key, val]) => (
-              val && !key.includes('名前') && !key.includes('Name') && !key.includes('レアリティ') && !['免', '種別', '条件or効果', '要度'].includes(key) && (
+              val && !key.includes('名前') && !key.includes('Name') && !key.includes('レアリティ') && 
+              !['免', '種別', '条件or効果', '要度'].includes(key) && (
                 <div key={key} className="flex justify-between text-[11px] border-b border-slate-800/30 pb-1.5 last:border-0">
                   <span className="text-slate-500 uppercase tracking-tighter font-bold leading-tight mr-2">{key}</span>
                   <span className="text-slate-300 font-medium text-right ml-2 break-all">{String(val)}</span>
@@ -378,6 +405,27 @@ const ItemCard = ({ item, mode, tabName }) => {
               )
             ))}
           </div>
+
+          {/* サブ行（拡張データ）の表示 */}
+          {item._subRows && item._subRows.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-slate-800">
+              <p className="text-[10px] text-blue-400 font-black mb-3 tracking-widest uppercase flex items-center gap-2">
+                <Database size={12} /> EXTENDED DATA
+              </p>
+              {item._subRows.map((sub, idx) => (
+                <div key={idx} className="mb-4 last:mb-0 p-3 bg-black/20 rounded-xl border border-slate-800/50">
+                  {Object.entries(sub).map(([sk, sv]) => (
+                    sv && !sk.includes('Unnamed') && (
+                      <div key={sk} className="flex flex-col mb-2 last:mb-0">
+                        <span className="text-[9px] text-slate-600 font-bold uppercase">{sk}</span>
+                        <span className="text-xs text-slate-400 leading-relaxed">{String(sv)}</span>
+                      </div>
+                    )
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
