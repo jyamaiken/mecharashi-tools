@@ -390,9 +390,6 @@ const ItemCard = ({ item, mode, tabName, onSelect }: any) => {
                 </div>
               )
             ))}
-            <div className="pt-2 text-center">
-              <span className="text-[9px] text-blue-500/60 font-bold uppercase tracking-widest">クリックで詳細を表示</span>
-            </div>
           </div>
         </div>
       </div>
