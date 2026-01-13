@@ -291,10 +291,16 @@ const App: React.FC = () => {
         </div>
       )}
 
-      <footer className="py-16 border-t border-slate-900 text-center bg-[#0a0c10]">
-        <p className="text-slate-700 text-[10px] tracking-[0.4em] uppercase font-bold">
-          Mecharashi dynamic archive system v2.5
-        </p>
+      <footer className="py-12 border-t border-slate-900 bg-[#0a0c10] px-4">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-slate-700 text-[10px] tracking-[0.4em] uppercase font-bold text-center md:text-left">
+            Mecharashi dynamic archive system v2.6
+          </p>
+          <div className="text-[9px] text-slate-600 text-center md:text-right leading-relaxed opacity-60 hover:opacity-100 transition-opacity">
+            <p>作成者：vinotamon</p>
+            <p>データソース：nikoraehu2様作成</p>
+          </div>
+        </div>
       </footer>
     </div>
   );
