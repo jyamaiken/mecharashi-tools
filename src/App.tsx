@@ -338,7 +338,14 @@ const ItemCard = ({ item, mode, tabName, onSelect }: any) => {
       >
         <div className="flex items-center gap-4">
           <div className={`w-1 h-6 rounded-full ${rarity.includes('S') ? 'bg-orange-500' : rarity.includes('A') ? 'bg-purple-500' : 'bg-blue-500'}`} />
-          <span className="text-white font-bold group-hover:text-blue-400 transition-colors">{name}</span>
+          <span className="text-white font-bold group-hover:text-blue-400 transition-colors flex items-center gap-2">
+            {name}
+            {tabName === 'コア' && item['要度'] && (
+              <span className="text-[10px] text-slate-500 font-normal italic">
+                (要度: {item['要度']})
+              </span>
+            )}
+          </span>
           {tabName === 'ST' && item['免'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">免: {item['免']}</span>}
           {(tabName === '武器' || tabName === 'コア') && item['種別'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">{item['種別']}</span>}
           {tabName === 'コア' && item['条件or効果'] && (
@@ -363,7 +370,12 @@ const ItemCard = ({ item, mode, tabName, onSelect }: any) => {
           <span className="text-[10px] font-black tracking-widest uppercase opacity-70">{rarity}</span>
           <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 transition-all group-hover:translate-x-1" />
         </div>
-        <h3 className="text-white font-black text-lg tracking-tight group-hover:text-blue-400 transition-colors line-clamp-1">{name}</h3>
+        <h3 className="text-white font-black text-lg tracking-tight group-hover:text-blue-400 transition-colors flex items-baseline gap-2">
+          <span className="truncate">{name}</span>
+          {tabName === 'コア' && item['要度'] && (
+            <span className="text-[10px] font-bold text-slate-500 whitespace-nowrap">要度: {item['要度']}</span>
+          )}
+        </h3>
       </div>
       
       <div className="p-4 flex-1 overflow-hidden">
