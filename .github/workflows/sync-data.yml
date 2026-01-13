@@ -40,7 +40,7 @@ jobs:
           git add public/data/*.json
           
           # 変更がない場合は終了
-          if git diff --staged --quiet; i; then
+          if git diff --staged --quiet; then
             echo "No changes detected in data. Skipping push."
             exit 0
           fi
