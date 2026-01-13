@@ -186,7 +186,7 @@ const App: React.FC = () => {
             </h1>
           </div>
 
-          <div className="flex-1 max-w-md mx-6">
+          <div className="flex-1 max-md:mx-2 mx-6">
             <div className="relative group">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
               <input
@@ -289,6 +289,11 @@ const ItemCard = ({ item, mode, tabName }: any) => {
           <span className="text-white font-bold">{name}</span>
           {tabName === 'ST' && item['免'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">免: {item['免']}</span>}
           {(tabName === '武器' || tabName === 'コア') && item['種別'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">{item['種別']}</span>}
+          {tabName === 'コア' && item['条件or効果'] && (
+            <span className="text-[10px] text-blue-400 underline decoration-blue-900/50 truncate max-w-[200px] italic">
+              {item['条件or効果']}
+            </span>
+          )}
           {item._subRows?.length > 0 && <span className="text-[10px] text-blue-400 border border-blue-900/50 px-1.5 rounded">+{item._subRows.length} rows</span>}
         </div>
         <ChevronRight size={14} className="text-slate-700 group-hover:text-slate-400 transition-transform group-hover:translate-x-1" />
@@ -308,10 +313,32 @@ const ItemCard = ({ item, mode, tabName }: any) => {
       
       <div className="p-4 flex-1 overflow-y-auto max-h-[400px]">
         <div className="space-y-4">
-          {/* Main Row Data */}
+          {/* コアタブ専用の優先表示項目 */}
+          {tabName === 'コア' && (
+            <div className="space-y-3 mb-4 border-b border-slate-800/80 pb-3">
+              {item['条件or効果'] && (
+                <div className="flex flex-col gap-1">
+                  <span className="text-slate-500 uppercase tracking-tighter font-bold text-[9px]">条件or効果</span>
+                  <span className="text-blue-400 font-bold text-xs underline decoration-blue-500/40 underline-offset-4 leading-relaxed">
+                    {item['条件or効果']}
+                  </span>
+                </div>
+              )}
+              {item['要度'] && (
+                <div className="flex justify-between items-center text-[11px]">
+                  <span className="text-slate-500 uppercase tracking-tighter font-bold">要度</span>
+                  <span className="text-slate-200 font-black underline decoration-slate-700 underline-offset-4">
+                    {String(item['要度'])}
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* メインデータ行 */}
           <div className="space-y-2">
             {itemEntries.slice(1, 15).map(([key, val]) => (
-              val && !['レアリティ', 'Rarity', 'Name', '名前', '機体名', '武器名', '日本名', '免', '種別'].includes(key) && (
+              val && !['レアリティ', 'Rarity', 'Name', '名前', '機体名', '武器名', '日本名', '免', '種別', '条件or効果', '要度'].includes(key) && (
                 <div key={key} className="flex justify-between text-[11px] border-b border-slate-800/30 pb-1.5 last:border-0">
                   <span className="text-slate-500 uppercase tracking-tighter font-bold">{key}</span>
                   <span className="text-slate-300 font-medium text-right ml-2">{String(val)}</span>
@@ -320,14 +347,14 @@ const ItemCard = ({ item, mode, tabName }: any) => {
             ))}
           </div>
 
-          {/* Sub Rows (Character Translations etc) */}
+          {/* サブ行（拡張データ） */}
           {item._subRows && item._subRows.length > 0 && (
             <div className="mt-4 pt-4 border-t border-slate-800">
               <p className="text-[10px] text-blue-400 font-black mb-3 tracking-widest uppercase">Extended Data</p>
               {item._subRows.map((sub: any, idx: number) => (
                 <div key={idx} className="mb-4 last:mb-0 p-2 bg-black/20 rounded-lg border border-slate-800/50">
                   {Object.entries(sub).map(([sk, sv]) => (
-                    sv && !['レアリティ', 'Rarity', 'Name', '名前', '機体名', '武器名', '日本名', '免', '種別'].includes(sk) && (
+                    sv && !['レアリティ', 'Rarity', 'Name', '名前', '機体名', '武器名', '日本名', '免', '種別', '条件or効果', '要度'].includes(sk) && (
                       <div key={sk} className="flex flex-col mb-2 last:mb-0">
                         <span className="text-[9px] text-slate-600 font-bold uppercase">{sk}</span>
                         <span className="text-xs text-slate-400 leading-relaxed">{String(sv)}</span>
