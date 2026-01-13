@@ -78,7 +78,7 @@ const App = () => {
         }
         const subHeaderValue = String(subHeaderRow[key] || '').trim();
         
-        // 統合キーの作成 (例: ST_名前、名前_トワイライトなど)
+        // 統合キーの作成
         if (subHeaderValue && subHeaderValue !== lastValidMainHeader) {
           keyMapping[key] = `${lastValidMainHeader}_${subHeaderValue}`;
         } else {
@@ -87,7 +87,7 @@ const App = () => {
       });
     }
 
-    // 2. データの正規化と独立処理
+    // 2. データの正規化と独立処理（統合ロジックを排除し全行を独立させる）
     return dataToProcess.map((row) => {
       const normalizedRow = {};
       Object.keys(row).forEach(key => {
@@ -244,7 +244,7 @@ const App = () => {
       <footer className="py-12 border-t border-slate-900 bg-[#0a0c10] px-4">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-slate-700 text-[10px] tracking-[0.4em] uppercase font-bold text-center md:text-left">
-            Mecharashi dynamic archive system v3.0
+            Mecharashi dynamic archive system v3.1
           </p>
           <div className="text-[9px] text-slate-600 text-center md:text-right leading-relaxed opacity-60 hover:opacity-100 transition-opacity">
             <p>作成者：vinotamon</p>
@@ -274,9 +274,9 @@ const NavButton = ({ active, icon, label, onClick, count }) => (
 const ItemCard = ({ item, mode, tabName }) => {
   const itemEntries = Object.entries(item).filter(([k]) => !k.startsWith('_'));
   
-  // 「名前」に関連するキーを動的に探す
+  // 名前に関連するキーを動的に探す（結合されたキー名も考慮）
   const findNameKey = (obj) => {
-    // キャラSTの場合は「名前」や「Name」を含むキーを優先的に探す
+    // キャラSTの場合は統合キー(名前_トワイライトなど)を優先
     return Object.keys(obj).find(k => k.includes('名前') || k.includes('Name')) || null;
   };
 
@@ -285,7 +285,8 @@ const ItemCard = ({ item, mode, tabName }) => {
   // 名前とレアリティの特定
   const getName = (obj) => {
     if (tabName === 'キャラST' && nameKey) {
-      return obj[nameKey] || 'Unknown';
+      // 特定のキーにある値をタイトルにする
+      return String(obj[nameKey] || '').trim() || 'Unknown';
     }
     return obj['名前'] || obj['Name'] || obj['日本名'] || obj['機体名'] || obj['武器名'] ||
            obj['基本情報_名前'] || obj['基本情報_Name'] || obj['基本情報_日本名'] ||
@@ -301,7 +302,7 @@ const ItemCard = ({ item, mode, tabName }) => {
   // 情報として表示するキーのフィルタリング
   const displayEntries = itemEntries.filter(([key]) => {
     if (tabName === 'キャラST') {
-      // タイトルに使用したキー(nameKey)とレアリティ関連を詳細情報から除外
+      // タイトルに使用したキーを詳細情報から完全に外す
       return key !== nameKey && !key.includes('レアリティ') && !key.includes('Rarity');
     }
     return !['レアリティ', 'Rarity', 'Name', '名前', '機体名', '武器名', '日本名'].includes(key);
