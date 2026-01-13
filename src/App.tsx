@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Shield, User, Sword, RefreshCw, ChevronRight, LayoutGrid, List, AlertCircle, Database, Box, Layers, Filter, Languages } from 'lucide-react';
+import { Search, Shield, User, Sword, RefreshCw, ChevronRight, LayoutGrid, List, AlertCircle, Database, Box, Layers, Filter, Languages, Cpu } from 'lucide-react';
 
 const App: React.FC = () => {
   const [db, setDb] = useState<any>(null);
@@ -37,7 +37,7 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!db || !activeTab) return;
 
-    if (activeTab === 'ST' || activeTab === '武器') {
+    if (activeTab === 'ST' || activeTab === '武器' || activeTab === 'コア') {
       setSelectedSubGroup('すべて');
     } else {
       setSelectedSubGroup('');
@@ -50,6 +50,7 @@ const App: React.FC = () => {
     if (name.includes('機体') || name.includes('メカ') || name.includes('ユニット')) return <Shield size={18} />;
     if (name.includes('武器')) return <Sword size={18} />;
     if (name.includes('ST')) return <Layers size={18} />;
+    if (name.includes('コア')) return <Cpu size={18} />;
     return <Box size={18} />;
   };
 
@@ -102,7 +103,8 @@ const App: React.FC = () => {
       );
     }
 
-    const groupField = activeTab === 'ST' ? '免' : activeTab === '武器' ? '種別' : null;
+    // サブグループ化を適用するフィールドの決定
+    const groupField = activeTab === 'ST' ? '免' : (activeTab === '武器' || activeTab === 'コア') ? '種別' : null;
 
     if (groupField) {
       // 全データから存在するグループのリストを抽出してソートし、「すべて」を先頭に追加
@@ -189,7 +191,7 @@ const App: React.FC = () => {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
               <input
                 type="text"
-                placeholder={`${activeTab} 内を検索...`}
+                placeholder={`${activeTab} 内を検索... (名前や効果でフィルタリング)`}
                 className="w-full bg-[#0d1117] border border-slate-700 rounded-lg py-1.5 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -242,7 +244,7 @@ const App: React.FC = () => {
 
       <footer className="py-16 border-t border-slate-900 text-center bg-[#0a0c10]">
         <p className="text-slate-700 text-[10px] tracking-[0.4em] uppercase font-bold">
-          Mecharashi dynamic archive system v2.4
+          Mecharashi dynamic archive system v2.5
         </p>
       </footer>
     </div>
@@ -286,7 +288,7 @@ const ItemCard = ({ item, mode, tabName }: any) => {
           <div className={`w-1 h-6 rounded-full ${rarity.includes('S') ? 'bg-orange-500' : rarity.includes('A') ? 'bg-purple-500' : 'bg-blue-500'}`} />
           <span className="text-white font-bold">{name}</span>
           {tabName === 'ST' && item['免'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">免: {item['免']}</span>}
-          {tabName === '武器' && item['種別'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">{item['種別']}</span>}
+          {(tabName === '武器' || tabName === 'コア') && item['種別'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">{item['種別']}</span>}
           {item._subRows?.length > 0 && <span className="text-[10px] text-blue-400 border border-blue-900/50 px-1.5 rounded">+{item._subRows.length} rows</span>}
         </div>
         <ChevronRight size={14} className="text-slate-700 group-hover:text-slate-400 transition-transform group-hover:translate-x-1" />
