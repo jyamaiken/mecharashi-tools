@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Shield, User, Sword, RefreshCw, ChevronRight, LayoutGrid, List, AlertCircle, Database, Box, Layers, Filter } from 'lucide-react';
+import { Search, Shield, User, Sword, RefreshCw, ChevronRight, LayoutGrid, List, AlertCircle, Database, Box, Layers, Filter, Languages } from 'lucide-react';
 
 const App: React.FC = () => {
   const [db, setDb] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<string>('');
-  const [selectedSTGroup, setSelectedSTGroup] = useState<string>('');
+  const [selectedSubGroup, setSelectedSubGroup] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
@@ -33,18 +33,26 @@ const App: React.FC = () => {
     loadDatabase();
   }, []);
 
-  // STタブが選択された際、または検索結果が変わった際に、初期グループを設定する
   useEffect(() => {
-    if (activeTab === 'ST' && db?.['ST']) {
-      const groups = [...new Set(db['ST'].map((item: any) => String(item['免'] || '未設定')))].sort();
-      if (groups.length > 0 && !groups.includes(selectedSTGroup)) {
-        setSelectedSTGroup(groups[0]);
+    if (!db || !activeTab) return;
+
+    let groupField = '';
+    if (activeTab === 'ST') groupField = '免';
+    else if (activeTab === '武器') groupField = '種別';
+
+    if (groupField && db[activeTab]) {
+      const groups = [...new Set(db[activeTab].map((item: any) => String(item[groupField] || '未設定')))].sort();
+      if (groups.length > 0) {
+        setSelectedSubGroup(groups[0]);
       }
+    } else {
+      setSelectedSubGroup('');
     }
-  }, [activeTab, db, selectedSTGroup]);
+  }, [activeTab, db]);
 
   const getTabIcon = (name: string) => {
-    if (name.includes('操縦士') || name.includes('キャラ')) return <User size={18} />;
+    if (name.includes('操縦士') || name.includes('キャラST')) return <User size={18} />;
+    if (name.includes('キャラ訳')) return <Languages size={18} />;
     if (name.includes('機体') || name.includes('メカ') || name.includes('ユニット')) return <Shield size={18} />;
     if (name.includes('武器')) return <Sword size={18} />;
     if (name.includes('ST')) return <Layers size={18} />;
@@ -52,16 +60,44 @@ const App: React.FC = () => {
   };
 
   const sheetNames = db ? Object.keys(db) : [];
-  const currentData = db && activeTab ? db[activeTab] : [];
   
-  // 検索フィルタリング（シート全体に対して検索）
-  const searchedItems = currentData.filter((item: any) =>
+  // データの正規化（キャラ訳などの複数行データを統合）
+  const getProcessedData = () => {
+    const rawData = db?.[activeTab] || [];
+    
+    if (activeTab === 'キャラ訳') {
+      const grouped: any[] = [];
+      let currentItem: any = null;
+
+      rawData.forEach((row: any) => {
+        const name = row['名前'] || row['Name'] || Object.values(row)[0];
+        // 名前が入っている行は新しいキャラクターの開始
+        if (name && String(name).trim() !== "") {
+          if (currentItem) grouped.push(currentItem);
+          currentItem = { ...row, _subRows: [] };
+        } else if (currentItem) {
+          // 名前が空の行は、現在のキャラクターの補足データ（2〜4行目）として蓄積
+          currentItem._subRows.push(row);
+        }
+      });
+      if (currentItem) grouped.push(currentItem);
+      return grouped;
+    }
+    
+    return rawData;
+  };
+
+  const processedData = getProcessedData();
+  
+  // 検索フィルタリング
+  const searchedItems = processedData.filter((item: any) =>
     Object.values(item).some(val => 
       String(val).toLowerCase().includes(searchTerm.toLowerCase())
-    )
+    ) || (item._subRows && item._subRows.some((sub: any) => 
+      Object.values(sub).some(sv => String(sv).toLowerCase().includes(searchTerm.toLowerCase()))
+    ))
   );
 
-  // 「ST」タブの場合のグループ化とコンテンツ描画
   const renderContent = () => {
     if (searchedItems.length === 0) {
       return (
@@ -71,28 +107,26 @@ const App: React.FC = () => {
       );
     }
 
-    if (activeTab === 'ST') {
-      // 全データから存在する「免」のリストを抽出してソート
-      const allGroups = [...new Set(currentData.map((item: any) => String(item['免'] || '未設定')))].sort();
-      
-      // 検索条件に合致し、かつ現在選択されている「免」グループに属するアイテム
-      const groupFilteredItems = searchedItems.filter((item: any) => String(item['免'] || '未設定') === selectedSTGroup);
+    const groupField = activeTab === 'ST' ? '免' : activeTab === '武器' ? '種別' : null;
+
+    if (groupField) {
+      const allGroups = [...new Set(processedData.map((item: any) => String(item[groupField] || '未設定')))].sort();
+      const groupFilteredItems = searchedItems.filter((item: any) => String(item[groupField] || '未設定') === selectedSubGroup);
 
       return (
         <div className="space-y-6">
-          {/* サブタブ（免の選択） */}
           <div className="flex flex-wrap gap-2 p-2 bg-[#161b22] border border-slate-800 rounded-xl">
             <div className="flex items-center gap-2 px-3 text-slate-500 border-r border-slate-800 mr-1">
               <Filter size={14} />
-              <span className="text-xs font-bold uppercase tracking-wider">免選択</span>
+              <span className="text-xs font-bold uppercase tracking-wider">{groupField}選択</span>
             </div>
             {allGroups.map(group => (
               <button
                 key={group}
-                onClick={() => setSelectedSTGroup(group)}
+                onClick={() => setSelectedSubGroup(group)}
                 className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                  selectedSTGroup === group
-                    ? 'bg-blue-600 text-white shadow-lg'
+                  selectedSubGroup === group
+                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/40'
                     : 'text-slate-500 hover:bg-slate-800 hover:text-slate-300'
                 }`}
               >
@@ -101,23 +135,15 @@ const App: React.FC = () => {
             ))}
           </div>
 
-          {/* グループ内のデータ表示 */}
-          {groupFilteredItems.length > 0 ? (
-            <div className={viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" : "space-y-2"}>
-              {groupFilteredItems.map((item: any, i: number) => (
-                <ItemCard key={i} item={item} mode={viewMode} tabName={activeTab} />
-              ))}
-            </div>
-          ) : (
-            <div className="py-20 text-center text-slate-600 bg-[#161b22]/30 border border-dashed border-slate-800 rounded-2xl">
-              <p>この「免」グループ内に検索条件に一致するデータはありません。</p>
-            </div>
-          )}
+          <div className={viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" : "space-y-2"}>
+            {groupFilteredItems.map((item: any, i: number) => (
+              <ItemCard key={i} item={item} mode={viewMode} tabName={activeTab} />
+            ))}
+          </div>
         </div>
       );
     }
 
-    // ST以外の通常の表示
     return (
       <div className={viewMode === 'grid' ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4" : "space-y-2"}>
         {searchedItems.map((item: any, i: number) => (
@@ -182,7 +208,6 @@ const App: React.FC = () => {
           </div>
         ) : (
           <>
-            {/* Main Tabs */}
             <nav className="flex flex-wrap gap-2 mb-8">
               {sheetNames.map((name) => (
                 <NavButton 
@@ -199,7 +224,6 @@ const App: React.FC = () => {
               ))}
             </nav>
 
-            {/* Content Area */}
             {renderContent()}
           </>
         )}
@@ -207,7 +231,7 @@ const App: React.FC = () => {
 
       <footer className="py-16 border-t border-slate-900 text-center bg-[#0a0c10]">
         <p className="text-slate-700 text-[10px] tracking-[0.4em] uppercase font-bold">
-          Mecharashi dynamic archive system v2.1
+          Mecharashi dynamic archive system v2.3
         </p>
       </footer>
     </div>
@@ -230,9 +254,8 @@ const NavButton = ({ active, icon, label, onClick, count }: any) => (
 );
 
 const ItemCard = ({ item, mode, tabName }: any) => {
-  const itemEntries = Object.entries(item);
+  const itemEntries = Object.entries(item).filter(([k]) => !k.startsWith('_'));
   
-  // 表示用タイトルの決定
   let name = '';
   if (tabName === 'ST') {
     name = item['日本名'] || item['名前'] || itemEntries[0][1];
@@ -241,7 +264,6 @@ const ItemCard = ({ item, mode, tabName }: any) => {
   }
 
   const rarity = item['レアリティ'] || item['Rarity'] || 'N';
-  
   const rarityClass = rarity.includes('S') ? 'border-orange-500/30 bg-orange-500/5 text-orange-400' 
                    : rarity.includes('A') ? 'border-purple-500/30 bg-purple-500/5 text-purple-400'
                    : 'border-blue-500/30 bg-blue-500/5 text-blue-400';
@@ -252,9 +274,9 @@ const ItemCard = ({ item, mode, tabName }: any) => {
         <div className="flex items-center gap-4">
           <div className={`w-1 h-6 rounded-full ${rarity.includes('S') ? 'bg-orange-500' : rarity.includes('A') ? 'bg-purple-500' : 'bg-blue-500'}`} />
           <span className="text-white font-bold">{name}</span>
-          {tabName === 'ST' && item['免'] && (
-             <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">免: {item['免']}</span>
-          )}
+          {tabName === 'ST' && item['免'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">免: {item['免']}</span>}
+          {tabName === '武器' && item['種別'] && <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">{item['種別']}</span>}
+          {item._subRows?.length > 0 && <span className="text-[10px] text-blue-400 border border-blue-900/50 px-1.5 rounded">+{item._subRows.length} rows</span>}
         </div>
         <ChevronRight size={14} className="text-slate-700 group-hover:text-slate-400 transition-transform group-hover:translate-x-1" />
       </div>
@@ -270,16 +292,39 @@ const ItemCard = ({ item, mode, tabName }: any) => {
         </div>
         <h3 className="text-white font-black text-lg tracking-tight group-hover:text-blue-400 transition-colors line-clamp-1">{name}</h3>
       </div>
-      <div className="p-4 flex-1">
-        <div className="space-y-2">
-          {itemEntries.slice(0, 12).map(([key, val]) => (
-            val && !['レアリティ', 'Rarity', 'Name', '名前', '機体名', '武器名', '日本名', '免'].includes(key) && (
-              <div key={key} className="flex justify-between text-[11px] border-b border-slate-800/30 pb-1.5 last:border-0">
-                <span className="text-slate-500 uppercase tracking-tighter font-bold">{key}</span>
-                <span className="text-slate-300 font-medium text-right ml-2">{String(val)}</span>
-              </div>
-            )
-          ))}
+      
+      <div className="p-4 flex-1 overflow-y-auto max-h-[400px]">
+        <div className="space-y-4">
+          {/* Main Row Data */}
+          <div className="space-y-2">
+            {itemEntries.slice(1, 15).map(([key, val]) => (
+              val && !['レアリティ', 'Rarity', 'Name', '名前', '機体名', '武器名', '日本名', '免', '種別'].includes(key) && (
+                <div key={key} className="flex justify-between text-[11px] border-b border-slate-800/30 pb-1.5 last:border-0">
+                  <span className="text-slate-500 uppercase tracking-tighter font-bold">{key}</span>
+                  <span className="text-slate-300 font-medium text-right ml-2">{String(val)}</span>
+                </div>
+              )
+            ))}
+          </div>
+
+          {/* Sub Rows (Character Translations etc) */}
+          {item._subRows && item._subRows.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-slate-800">
+              <p className="text-[10px] text-blue-400 font-black mb-3 tracking-widest uppercase">Extended Data</p>
+              {item._subRows.map((sub: any, idx: number) => (
+                <div key={idx} className="mb-4 last:mb-0 p-2 bg-black/20 rounded-lg border border-slate-800/50">
+                  {Object.entries(sub).map(([sk, sv]) => (
+                    sv && !['レアリティ', 'Rarity', 'Name', '名前', '機体名', '武器名', '日本名', '免', '種別'].includes(sk) && (
+                      <div key={sk} className="flex flex-col mb-2 last:mb-0">
+                        <span className="text-[9px] text-slate-600 font-bold uppercase">{sk}</span>
+                        <span className="text-xs text-slate-400 leading-relaxed">{String(sv)}</span>
+                      </div>
+                    )
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
